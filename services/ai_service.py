@@ -4,69 +4,67 @@ from .models import LogEntry
 import json
 from datetime import datetime
 
-def do_ai(prompt, api_key, log_time: datetime = None):
+def do_ai(prompt: str, api_key, log_time: datetime = None):
     """
-    :param prompt: User input
-    :param api_key: OpenAI API key
-    :param log_time: Optional datetime provided by user for the log
+    Extract exercises and foods from a natural language prompt using GPT-3.5-Turbo.
+
+    - Only include items explicitly mentioned.
+    - Return empty arrays if nothing is mentioned.
+    - Returns a dict matching the LogEntry schema.
     """
     client = OpenAI(api_key=api_key)
 
     schema_instruction = """
-    Please respond ONLY in JSON matching this schema:
+    Respond ONLY in JSON matching this schema:
 
     {
-      "exercise": [
-        {
-          "name": "string",
-          "sets": number,
-          "reps": number,
-          "weight_kg": number,
-          "distance_km": number,
-          "time_min": number
-        }
-      ],
-      "food": [
-        {
-          "name": "string",
-          "quantity_g": number,
-          "quantity_items": number
-        }
-      ],
-      "body_weight_kg": number
+        "exercise": [
+            {
+                "name": "string",
+                "sets": number,
+                "reps": number,
+                "weight_kg": number,
+                "distance_km": number,
+                "time_min": number
+            }
+        ],
+        "food": [
+            {
+                "name": "string",
+                "quantity_g": number,
+                "quantity_items": number
+            }
+        ],
+        "body_weight_kg": number
     }
 
     Rules:
-    1. Use numbers only in the fields above. Do NOT add text.
-    2. Ignore unrelated information.
-    3. Convert approximate units to the most natural one.
-    4. Always extract exercises exactly as described.
-    5. Respond with VALID JSON only, no extra commentary.
-    6. If a field is not specified, use null.
+    1. Include exercises and foods mentioned in the prompt. If you are unsure, include them with null values for missing fields.
+    2. Do NOT invent additional exercises or foods.
+    3. Use numbers for sets, reps, weight, distance, time, quantity. If only a word is given, try to convert to number. If missing, use null.
+    4. If no exercises or foods are mentioned, return empty arrays.
+    5. Respond with strict JSON only, no commentary.
+    6. If bodyweight is not mentioned use null.
+
     """
 
-    full_prompt = f"{prompt}\n\n{schema_instruction}"
-
     try:
+
         completion = client.chat.completions.create(
             model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": full_prompt}]
+            messages=[{"role": "user", "content": f"{prompt}\n\n{schema_instruction}"}]
         )
 
         response_text = completion.choices[0].message.content
-
-        # Parse JSON first
         parsed_json = json.loads(response_text)
 
-        # Inject the timestamp from request if provided
+        # Add timestamp if provided
         if log_time:
             parsed_json["timestamp"] = log_time.isoformat()
 
-        # Validate and parse with Pydantic
+        # Validate with Pydantic
         validated_data = LogEntry.model_validate(parsed_json)
-
-        # Return as dict
-        return validated_data.dict()
+        return validated_data.model_dump()
 
     except json.JSONDecodeError:
         return {"error": "AI did not return valid JSON", "raw_response": response_text}

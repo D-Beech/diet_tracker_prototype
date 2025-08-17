@@ -3,6 +3,8 @@ from services.ai_service import do_ai
 from services.models import LogEntry
 import os
 from dotenv import load_dotenv
+from db.base import SessionLocal
+from db.db_service import save_log_entry
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -27,8 +29,8 @@ def is_empty_log(entry: LogEntry) -> bool:
 @app.route("/api/voice", methods=["POST"])
 def process_voice():
     data = request.get_json()
-    prompt = data.get("query", "")
-    time_stamp = data.get("time_stamp", None)
+    prompt = data.get("prompt", "")
+    #time_stamp = data.get("time_stamp", None)
 
     # Call AI service
     ai_response = do_ai(prompt, openai_api_key)
@@ -40,6 +42,7 @@ def process_voice():
     # Parse into Pydantic model
     try:
         log_entry = LogEntry.model_validate(ai_response)
+
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 400
 
@@ -51,7 +54,10 @@ def process_voice():
             "data": log_entry.dict()
         }), 200
 
-    # Otherwise, return validated data
+    # Otherwise, save to db and return validated data
+    db = SessionLocal()  # open a new session
+    save_log_entry(db=db, log=log_entry)
+
     return jsonify({
         "status": "success",
         "message": "Data extracted successfully",

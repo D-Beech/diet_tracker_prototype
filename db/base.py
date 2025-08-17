@@ -36,10 +36,8 @@ Base = declarative_base()
 # Session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Dependency function for endpoints or services
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+# To make tables
+# def make_tables():
+#     Base.metadata.create_all(bind=engine)
+
+# make_tables()
