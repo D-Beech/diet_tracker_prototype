@@ -3,11 +3,25 @@ from services.ai_service import do_ai
 from services.models import LogEntry
 import os
 from dotenv import load_dotenv
-from db.base import SessionLocal
-from db.db_service import save_log_entry
+
 
 # Initialize Flask app
 app = Flask(__name__)
+
+# Load Postgres credentials from environment
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_PORT = os.getenv("DB_PORT", 5432)
+DB_NAME = os.getenv("DB_NAME")
+
+# Determine DATABASE_URL
+if DB_USER and DB_PASSWORD and DB_NAME:
+    # Use Postgres if credentials are provided
+    DATABASE_URL = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+else:
+    # Fallback to local SQLite for development
+    DATABASE_URL = "sqlite:///./app.db"
 
 # Load environment variables
 load_dotenv()
@@ -54,15 +68,12 @@ def process_voice():
             "data": log_entry.dict()
         }), 200
 
-    # Otherwise, save to db and return validated data
-    db = SessionLocal()  # open a new session
-    save_log_entry(db=db, log=log_entry)
-
     return jsonify({
         "status": "success",
         "message": "Data extracted successfully",
         "data": log_entry.dict()
     }), 200
+
 
 if __name__ == "__main__":
     app.run(debug=True)
