@@ -2,3 +2,5 @@ venv/
 .env
 __pycache__
 nutrition_db/
+*.csv
+*.db
