@@ -10,21 +10,21 @@ cols = [
     "carbohydrates_100g", "fat_100g"
 ]
 
-# Chunking is required to run this job on my 16gb laptop
 chunksize = 100_000
 first = True
 
 for chunk in pd.read_csv(input_file, sep="\t", usecols=cols, chunksize=chunksize, low_memory=False):
 
-    # Drop rows where any required field is missing
-    chunk = chunk.dropna(subset=cols)
+    # Drop rows where required numeric fields are missing
+    numeric_cols = ["energy_100g", "proteins_100g", "carbohydrates_100g", "fat_100g"]
+    chunk = chunk.dropna(subset=numeric_cols)
 
     # Convert to numeric safely
-    for col in ["energy_100g", "proteins_100g", "carbohydrates_100g", "fat_100g"]:
+    for col in numeric_cols:
         chunk[col] = pd.to_numeric(chunk[col], errors="coerce", downcast="float")
 
-    # Drop again if conversion introduced NaNs
-    chunk = chunk.dropna(subset=["energy_100g", "proteins_100g", "carbohydrates_100g", "fat_100g"])
+    # Drop rows where conversion introduced NaNs
+    chunk = chunk.dropna(subset=numeric_cols)
 
     # Filter impossible values
     chunk = chunk[
@@ -34,8 +34,11 @@ for chunk in pd.read_csv(input_file, sep="\t", usecols=cols, chunksize=chunksize
         (chunk["fat_100g"] >= 0) & (chunk["fat_100g"] <= 100)
     ]
 
-    # Drop duplicates (name + brand + macros)
-    chunk = chunk.drop_duplicates(subset=cols)
+    # Allow missing brands: fill NaN with empty string (optional)
+    chunk["brands"] = chunk["brands"].fillna("")
+
+    # Drop duplicates based on product_name + numeric fields (ignore brand)
+    chunk = chunk.drop_duplicates(subset=["product_name"] + numeric_cols)
 
     # Save cleaned chunk to CSV (append after first chunk)
     chunk.to_csv(output_file, mode="a", index=False, header=first)
